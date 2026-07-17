@@ -59,8 +59,8 @@ class RenderConfig:
     workers: int | None = None
     seed: int = 20260716
     output_dir: Path = Path("outputs")
-    tile_width: int = 32
-    tile_height: int = 32
+    tile_width: int = 16
+    tile_height: int = 16
 
     def __post_init__(self) -> None:
         """校验配置自身能够独立判断的结构约束。
