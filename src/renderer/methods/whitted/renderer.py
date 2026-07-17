@@ -15,6 +15,7 @@ from renderer.materials import DielectricMaterial, MirrorMaterial
 from renderer.methods.ray_casting.shading import shade_direct
 from renderer.methods.whitted.fresnel import schlick_reflectance
 from renderer.methods.whitted.optics import reflect, refract
+from renderer.parallel.tiles import Tile
 from renderer.scenes.scene import Scene
 
 
@@ -81,15 +82,29 @@ def trace_whitted(
     return np.maximum(result, 0.0)
 
 
-def render_whitted(scene: Scene, width: int, height: int, max_depth: int = 6) -> np.ndarray:
-    """渲染完整 Whitted 图像；尺寸或深度非法时抛出 ``ValueError``。"""
+def render_whitted_tile(
+    scene: Scene,
+    width: int,
+    height: int,
+    tile: Tile,
+    max_depth: int = 6,
+) -> np.ndarray:
+    """渲染指定全局 Tile；尺寸、边界或深度非法时抛出 ``ValueError``。"""
 
     if width <= 0 or height <= 0 or max_depth < 0:
         raise ValueError("图像尺寸必须为正且 max_depth 不能为负")
+    if tile.x1 > width or tile.y1 > height:
+        raise ValueError("Tile 超出完整图像范围")
     intersector = TriangleIntersector(scene.mesh)
-    image = np.zeros((height, width, 3), dtype=np.float64)
-    for pixel_y in range(height):
-        for pixel_x in range(width):
+    image = np.zeros((tile.height, tile.width, 3), dtype=np.float64)
+    for local_y, pixel_y in enumerate(range(tile.y0, tile.y1)):
+        for local_x, pixel_x in enumerate(range(tile.x0, tile.x1)):
             ray = scene.camera.generate_ray(pixel_x, pixel_y, width, height)
-            image[pixel_y, pixel_x] = trace_whitted(ray, scene, intersector, max_depth=max_depth)
+            image[local_y, local_x] = trace_whitted(ray, scene, intersector, max_depth=max_depth)
     return image
+
+
+def render_whitted(scene: Scene, width: int, height: int, max_depth: int = 6) -> np.ndarray:
+    """渲染完整 Whitted 图像，复用正式 Tile 入口。"""
+
+    return render_whitted_tile(scene, width, height, Tile(0, 0, 0, width, height), max_depth)

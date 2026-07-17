@@ -11,6 +11,7 @@ import numpy as np
 from renderer.core.ray import Ray
 from renderer.geometry.intersection import TriangleIntersector
 from renderer.methods.ray_casting.shading import shade_direct
+from renderer.parallel.tiles import Tile
 from renderer.scenes.scene import Scene
 
 
@@ -39,15 +40,16 @@ def trace_primary_ray(ray: Ray, scene: Scene, intersector: TriangleIntersector) 
     return shade_direct(hit, material, scene, intersector)
 
 
-def render_ray_casting(scene: Scene, width: int, height: int) -> np.ndarray:
-    """用单次主射线渲染完整图像。
+def render_ray_casting_tile(scene: Scene, width: int, height: int, tile: Tile) -> np.ndarray:
+    """用单次主射线渲染指定全局 Tile。
 
     参数:
         scene: 统一 Cornell Box 或兼容场景。
-        width/height: 输出尺寸，单位为像素，必须为正整数。
+        width/height: 完整输出尺寸，单位为像素。
+        tile: 位于完整图像范围内的目标区域。
 
     返回值:
-        形状 ``(height, width, 3)`` 的非负线性 ``float64`` 图像。
+        形状与 Tile 一致的非负线性 ``float64`` 图像。
 
     异常:
         ValueError: 尺寸非法或生产契约被违反时抛出。
@@ -58,10 +60,18 @@ def render_ray_casting(scene: Scene, width: int, height: int) -> np.ndarray:
 
     if width <= 0 or height <= 0:
         raise ValueError("图像宽高必须为正整数")
+    if tile.x1 > width or tile.y1 > height:
+        raise ValueError("Tile 超出完整图像范围")
     intersector = TriangleIntersector(scene.mesh)
-    image = np.zeros((height, width, 3), dtype=np.float64)
-    for pixel_y in range(height):
-        for pixel_x in range(width):
+    image = np.zeros((tile.height, tile.width, 3), dtype=np.float64)
+    for local_y, pixel_y in enumerate(range(tile.y0, tile.y1)):
+        for local_x, pixel_x in enumerate(range(tile.x0, tile.x1)):
             ray = scene.camera.generate_ray(pixel_x, pixel_y, width, height)
-            image[pixel_y, pixel_x] = trace_primary_ray(ray, scene, intersector)
+            image[local_y, local_x] = trace_primary_ray(ray, scene, intersector)
     return image
+
+
+def render_ray_casting(scene: Scene, width: int, height: int) -> np.ndarray:
+    """渲染完整 Ray Casting 图像，复用正式 Tile 入口。"""
+
+    return render_ray_casting_tile(scene, width, height, Tile(0, 0, 0, width, height))

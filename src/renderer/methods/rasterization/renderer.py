@@ -11,18 +11,20 @@ import numpy as np
 from renderer.geometry.projection import project_vertices
 from renderer.methods.rasterization.shading import shade_face
 from renderer.methods.rasterization.zbuffer import rasterize_triangle
+from renderer.parallel.tiles import Tile
 from renderer.scenes.scene import Scene
 
 
-def render_rasterization(scene: Scene, width: int, height: int) -> np.ndarray:
-    """使用 CPU 光栅化渲染场景。
+def render_rasterization_tile(scene: Scene, width: int, height: int, tile: Tile) -> np.ndarray:
+    """使用 CPU 光栅化渲染指定全局 Tile。
 
     参数:
         scene: 使用共享网格、相机、材质和点光源的正式场景。
-        width/height: 输出尺寸，单位为像素，必须为正整数。
+        width/height: 完整输出尺寸，单位为像素。
+        tile: 位于完整图像范围内的目标半开区域。
 
     返回值:
-        形状 ``(height, width, 3)`` 的非负线性 ``float64`` RGB 图像。
+        形状 ``(tile.height, tile.width, 3)`` 的非负线性 RGB。
 
     异常:
         ValueError: 图像尺寸非法或场景几何违反公共契约时抛出。
@@ -33,9 +35,12 @@ def render_rasterization(scene: Scene, width: int, height: int) -> np.ndarray:
 
     if width <= 0 or height <= 0:
         raise ValueError("图像宽高必须为正整数")
+    if tile.x1 > width or tile.y1 > height:
+        raise ValueError("Tile 超出完整图像范围")
     screen, depths = project_vertices(scene.mesh.vertices, scene.camera, width, height)
-    depth_buffer = np.full((height, width), np.inf, dtype=np.float64)
-    face_buffer = np.full((height, width), -1, dtype=np.int64)
+    local_screen = screen - np.array([tile.x0, tile.y0], dtype=np.float64)
+    depth_buffer = np.full((tile.height, tile.width), np.inf, dtype=np.float64)
+    face_buffer = np.full((tile.height, tile.width), -1, dtype=np.int64)
     face_colors = np.zeros((len(scene.mesh.faces), 3), dtype=np.float64)
     triangles = scene.mesh.triangles
     normals = scene.mesh.face_normals
@@ -46,7 +51,7 @@ def render_rasterization(scene: Scene, width: int, height: int) -> np.ndarray:
         # 实现正式三角形裁剪，而不是投影负深度顶点产生翻转伪影。
         if np.any(face_depths <= 1e-9):
             continue
-        rasterize_triangle(screen[face], face_depths, face_index, depth_buffer, face_buffer)
+        rasterize_triangle(local_screen[face], face_depths, face_index, depth_buffer, face_buffer)
         material = scene.materials[int(scene.mesh.material_indices[face_index])]
         face_colors[face_index] = shade_face(
             triangles[face_index].mean(axis=0),
@@ -55,7 +60,13 @@ def render_rasterization(scene: Scene, width: int, height: int) -> np.ndarray:
             scene.point_lights,
         )
 
-    image = np.zeros((height, width, 3), dtype=np.float64)
+    image = np.zeros((tile.height, tile.width, 3), dtype=np.float64)
     visible = face_buffer >= 0
     image[visible] = face_colors[face_buffer[visible]]
     return image
+
+
+def render_rasterization(scene: Scene, width: int, height: int) -> np.ndarray:
+    """渲染完整光栅化图像；实现复用正式 Tile 路径，无文件副作用。"""
+
+    return render_rasterization_tile(scene, width, height, Tile(0, 0, 0, width, height))
