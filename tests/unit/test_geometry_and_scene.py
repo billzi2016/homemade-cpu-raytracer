@@ -64,11 +64,13 @@ def test_material_energy_bounds_are_enforced() -> None:
         DiffuseMaterial(np.array([1.01, 0.5, 0.5]))
 
 
-def test_scene_registry_and_white_furnace_use_production_geometry() -> None:
-    """注册表应完整，白炉应复用几何且所有表面反射率为单位白。"""
+def test_scene_registry_and_white_furnace_use_physical_production_scene() -> None:
+    """注册表应完整，白炉应由单位白物体和单位均匀环境构成。"""
 
     assert scene_names() == ("cornell-box", "cornell-box-mixed", "white-furnace")
     assert create_scene("cornell-box-mixed").name == "cornell-box-mixed"
     furnace = create_white_furnace()
-    assert np.array_equal(furnace.mesh.faces, create_cornell_box().mesh.faces)
+    assert furnace.name == "white-furnace"
+    assert len(furnace.mesh.faces) > 0
+    np.testing.assert_array_equal(furnace.environment_radiance, np.ones(3))
     assert all(np.array_equal(material.albedo, np.ones(3)) for material in furnace.materials)
