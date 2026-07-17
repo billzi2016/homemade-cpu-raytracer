@@ -13,6 +13,8 @@ from collections.abc import Sequence
 
 from renderer import __version__
 from renderer.parallel.resources import available_logical_cpus, compute_worker_count
+from renderer.config import RenderMethod
+from renderer.workflows import publish_readme_results, render_all_methods, render_method, validate_all
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -52,6 +54,30 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="显式 Worker 数；提供后优先于 --cpu-percent，但仍不超过逻辑核心数。",
     )
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--width", type=int, default=128)
+    common.add_argument("--height", type=int, default=128)
+    common.add_argument("--spp", type=int, default=32)
+    common.add_argument("--max-depth", type=int, default=8)
+    common.add_argument("--cpu-percent", type=float, default=90.0)
+    common.add_argument("--workers", type=int, default=None)
+    common.add_argument("--seed", type=int, default=20260716)
+    common.add_argument("--output-dir", default="outputs")
+
+    render_parser = subparsers.add_parser("render", parents=[common], help="渲染一种正式方法。")
+    render_parser.add_argument("--method", required=True, choices=[method.value for method in RenderMethod])
+    render_parser.add_argument("--scene", default=None)
+    subparsers.add_parser("all", parents=[common], help="渲染五种方法并生成对比图。")
+
+    validate_parser = subparsers.add_parser("validate", help="运行能量守恒与白炉验证。")
+    validate_parser.add_argument("--output-dir", default="outputs")
+    validate_parser.add_argument("--seed", type=int, default=20260716)
+    validate_parser.add_argument("--furnace-size", type=int, default=24)
+    validate_parser.add_argument("--furnace-spp", type=int, default=8)
+
+    readme_parser = subparsers.add_parser("readme", parents=[common], help="生成 README 的全部真实结果。")
+    readme_parser.add_argument("--docs-dir", default="docs/images")
+    readme_parser.add_argument("--reference-spp", type=int, default=64)
     return parser
 
 
@@ -107,6 +133,33 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "system-info":
         return _run_system_info(args.cpu_percent, args.workers)
+    if args.command == "render":
+        report = render_method(
+            RenderMethod(args.method), args.output_dir, args.width, args.height, args.spp,
+            args.max_depth, args.cpu_percent, args.workers, args.seed, args.scene,
+        )
+        print(json.dumps(report, ensure_ascii=False, sort_keys=True))
+        return 0
+    if args.command == "all":
+        report = render_all_methods(
+            args.output_dir, args.width, args.height, args.spp, args.max_depth,
+            args.cpu_percent, args.workers, args.seed,
+        )
+        print(json.dumps(report, ensure_ascii=False, sort_keys=True))
+        return 0
+    if args.command == "validate":
+        report = validate_all(
+            args.output_dir, args.furnace_size, args.furnace_size, args.furnace_spp, args.seed
+        )
+        print(json.dumps(report, ensure_ascii=False, sort_keys=True))
+        return 0 if report["passed"] else 1
+    if args.command == "readme":
+        report = publish_readme_results(
+            args.output_dir, args.docs_dir, args.width, args.height, args.spp,
+            args.reference_spp, args.cpu_percent, args.workers, args.seed,
+        )
+        print(json.dumps(report, ensure_ascii=False, sort_keys=True))
+        return 0
 
     # 子解析器由本模块集中注册，正常情况下不可能到达这里；保留显式失败可防止
     # 未来新增命令时忘记接线而静默返回成功。
