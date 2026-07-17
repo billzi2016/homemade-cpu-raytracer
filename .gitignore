@@ -31,9 +31,8 @@ dist/
 *.egg-info/
 .eggs/
 
-# 下载数据与渲染生成物；README 精选图片位于 docs/images/，不忽略
+# 下载数据不纳入版本控制；正式渲染结果和 README 图片必须保留
 data/downloads/
-outputs/
 
 # 日志、临时文件与进程状态
 *.log

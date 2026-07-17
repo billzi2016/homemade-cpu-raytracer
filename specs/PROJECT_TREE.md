@@ -104,7 +104,7 @@ homemade-cpu-raytracer/
 │   ├── README.md
 │   ├── manifest.json                 # 来源、许可证、SHA-256
 │   └── downloads/                    # 下载生成，Git 忽略
-├── outputs/                          # 运行生成，Git 忽略
+├── outputs/                          # 正式渲染与验证结果，纳入版本控制
 │   ├── renders/
 │   │   ├── rasterization/
 │   │   ├── ray_casting/
@@ -152,10 +152,12 @@ homemade-cpu-raytracer/
 2. 创建项目骨架与依赖文件；
 3. 创建下载器和数据清单；
 4. 下载可选数据到 `data/downloads/`；
-5. 生成结果到 `outputs/`；
+5. 生成并验证正式结果到 `outputs/`，随后纳入版本控制；
 6. 将验证后的精选结果发布到 `docs/images/`。
 
 下载与渲染均应由用户显式命令触发，不在导入 Python 包时产生文件或网络请求。
+
+`outputs/` 保存 README 所引用的真实渲染图、对比图、曲线和验证报告，不得写入 `.gitignore`。临时帧和失败产物应使用系统临时目录或明确的临时子目录，并在正式发布前清理，避免与可复查结果混淆。
 
 ## SOLID 与 DRY 落地规则
 
