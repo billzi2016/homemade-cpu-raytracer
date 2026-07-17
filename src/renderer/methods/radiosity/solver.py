@@ -1,6 +1,7 @@
 """Radiosity 三通道线性方程组构建与 SciPy 求解。"""
 
 from dataclasses import dataclass
+import math
 import numpy as np
 from scipy.linalg import solve
 
@@ -32,7 +33,9 @@ def solve_radiosity(
     if factors.shape != (count, count) or np.any(factors < 0.0) or not np.all(np.isfinite(factors)):
         raise ValueError("form_factors 必须是非负有限方阵")
     reflectance = np.vstack([materials[index].albedo for index in patches.material_indices])
-    emission = np.vstack([materials[index].emission for index in patches.material_indices])
+    # 共享发光材质存储的是辐亮度 Le，而 Radiosity 方程中的 E 是半球积分后的
+    # 辐射出射度。理想 Lambert 发光面满足 E = πLe，必须在这里统一单位。
+    emission = math.pi * np.vstack([materials[index].emission for index in patches.material_indices])
     radiosity = np.zeros_like(emission)
     residuals = np.zeros(3, dtype=np.float64)
     identity = np.eye(count, dtype=np.float64)

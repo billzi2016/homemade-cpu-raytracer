@@ -19,6 +19,6 @@ def test_output_pipeline_writes_real_artifacts(tmp_path: Path) -> None:
     chart = save_convergence_chart([1, 4, 16], [0.1, 0.025, 0.00625], tmp_path / "chart.png")
 
     assert Image.open(first).size == (8, 8)
-    assert Image.open(montage).size == (16, 36)
+    assert Image.open(montage).size == (16, 60)
     assert json.loads(report.read_text(encoding="utf-8"))["passed"] is True
     assert chart.stat().st_size > 0

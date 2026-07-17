@@ -1,0 +1,17 @@
+# 默认高清 README 渲染参数。
+# 直接执行 ./run.sh 时会读取本文件，并走与显式 CLI 完全相同的生产工作流。
+
+[readme]
+width = 512
+height = 512
+samples_per_pixel = 128
+reference_spp = 1024
+convergence_size = 128
+deterministic_samples_per_pixel = 9
+sphere_subdivisions = 3
+radiosity_subdivision_levels = 3
+tile_size = 32
+cpu_percent = 90.0
+seed = 20260716
+output_root = "outputs"
+docs_root = "docs/images"

@@ -23,12 +23,14 @@ def _nearest_triangle_hit(
     direction: np.ndarray,
     t_min: float,
     t_max: float,
-) -> tuple[int, float]:
-    """用无分配循环返回最近面索引与距离；公开校验由 Python 包装层负责。"""
+) -> tuple[int, float, float, float]:
+    """用无分配循环返回最近面、距离和两个重心坐标；公开校验由包装层负责。"""
 
     closest_index = -1
     closest_distance = t_max
     epsilon = 1e-12
+    closest_u = 0.0
+    closest_v = 0.0
     for index in range(triangles.shape[0]):
         vertex0 = triangles[index, 0]
         edge1 = triangles[index, 1] - vertex0
@@ -50,7 +52,9 @@ def _nearest_triangle_hit(
         if t_min <= distance <= closest_distance:
             closest_index = index
             closest_distance = distance
-    return closest_index, closest_distance
+            closest_u = u
+            closest_v = v
+    return closest_index, closest_distance, closest_u, closest_v
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,7 +89,7 @@ class TriangleIntersector:
 
         if not math.isfinite(t_min) or t_min < 0.0 or math.isnan(t_max) or t_max <= t_min:
             raise ValueError("求交距离区间非法")
-        face_index, distance = _nearest_triangle_hit(
+        face_index, distance, barycentric_u, barycentric_v = _nearest_triangle_hit(
             self._triangles,
             ray.origin,
             ray.direction,
@@ -96,7 +100,20 @@ class TriangleIntersector:
             return None
         geometric = self._normals[face_index].copy()
         front_face = float(np.dot(ray.direction, geometric)) < 0.0
-        normal = geometric if front_face else -geometric
+        shading = geometric
+        if self._mesh.smooth_faces[face_index]:
+            face = self._mesh.faces[face_index]
+            barycentric_w = 1.0 - barycentric_u - barycentric_v
+            shading = (
+                barycentric_w * self._mesh.vertex_normals[face[0]]
+                + barycentric_u * self._mesh.vertex_normals[face[1]]
+                + barycentric_v * self._mesh.vertex_normals[face[2]]
+            )
+            shading /= np.linalg.norm(shading)
+            # 插值法线不得翻到几何面的背面，否则会让反射/折射跨越错误半球。
+            if float(np.dot(shading, geometric)) < 0.0:
+                shading = -shading
+        normal = shading if front_face else -shading
         return HitRecord(
             distance=float(distance),
             point=ray.at(float(distance)),

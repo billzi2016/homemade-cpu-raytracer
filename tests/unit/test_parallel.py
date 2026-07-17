@@ -1,13 +1,15 @@
-"""并行资源、Tile 和随机流的正式实现测试。
+"""并行资源、线程环境、Tile 和随机流的正式实现测试。
 
 测试覆盖纯函数边界与确定性，不启动伪造 Worker，也不复制调度算法。实际进程池
 集成测试将在渲染调度器落地后调用相同的生产 Tile 和 Seed 模块。
 """
 
+import os
 import pytest
 
 from renderer.parallel.resources import compute_worker_count
 from renderer.parallel.seeds import derive_stream_seed
+from renderer.parallel.thread_limits import worker_thread_environment
 from renderer.parallel.tiles import Tile, split_into_tiles
 
 
@@ -82,3 +84,15 @@ def test_stream_seeds_are_reproducible_and_distinct() -> None:
     assert first == repeated
     assert first != neighbor
     assert 0 <= first < 2**64
+
+
+def test_worker_environment_silences_intel_info_and_restores_parent() -> None:
+    """子进程环境应关闭 Intel 信息提示，并在进程池上下文后恢复父进程。"""
+
+    original_warning = os.environ.get("KMP_WARNINGS")
+    original_threads = os.environ.get("NUMBA_NUM_THREADS")
+    with worker_thread_environment(1):
+        assert os.environ["KMP_WARNINGS"] == "0"
+        assert os.environ["NUMBA_NUM_THREADS"] == "1"
+    assert os.environ.get("KMP_WARNINGS") == original_warning
+    assert os.environ.get("NUMBA_NUM_THREADS") == original_threads

@@ -10,6 +10,9 @@ homemade-cpu-raytracer/
 ├── pyproject.toml
 ├── requirements.txt
 ├── run.sh
+├── params/
+│   ├── README.md                    # 默认参数含义与唯一运行命令
+│   └── default.toml                 # 分辨率、采样与四方法质量参数唯一来源
 ├── specs/
 │   ├── PRD.md
 │   └── PROJECT_TREE.md
@@ -65,6 +68,7 @@ homemade-cpu-raytracer/
 │       │       ├── renderer.py
 │       │       └── sampling.py
 │       ├── parallel/
+│       │   ├── executor.py           # 多进程聚合、Tile/Patch tqdm 与 ETA
 │       │   ├── resources.py          # 90% CPU/Worker 计算
 │       │   ├── seeds.py              # 可复现独立随机流
 │       │   ├── thread_limits.py      # 防止底层库过度订阅

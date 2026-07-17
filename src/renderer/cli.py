@@ -13,8 +13,15 @@ from collections.abc import Sequence
 
 from renderer import __version__
 from renderer.parallel.resources import available_logical_cpus, compute_worker_count
-from renderer.config import RenderMethod
-from renderer.workflows import publish_readme_results, render_all_methods, render_method, validate_all
+from renderer.config import RenderMethod, RenderQuality
+from renderer.workflows import (
+    publish_readme_from_preset,
+    publish_readme_results,
+    render_all_methods,
+    render_method,
+    render_method_from_preset,
+    validate_all,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -63,6 +70,10 @@ def build_parser() -> argparse.ArgumentParser:
     common.add_argument("--workers", type=int, default=None)
     common.add_argument("--seed", type=int, default=20260716)
     common.add_argument("--output-dir", default="outputs")
+    common.add_argument("--deterministic-spp", type=int, default=1)
+    common.add_argument("--sphere-subdivisions", type=int, default=2)
+    common.add_argument("--radiosity-subdivision-levels", type=int, default=2)
+    common.add_argument("--tile-size", type=int, default=16)
 
     render_parser = subparsers.add_parser("render", parents=[common], help="渲染一种正式方法。")
     render_parser.add_argument("--method", required=True, choices=[method.value for method in RenderMethod])
@@ -79,6 +90,9 @@ def build_parser() -> argparse.ArgumentParser:
     readme_parser.add_argument("--docs-dir", default="docs/images")
     readme_parser.add_argument("--reference-spp", type=int, default=64)
     readme_parser.add_argument("--convergence-size", type=int, default=128)
+    preset_parser = subparsers.add_parser("preset", help="加载 TOML 并生成完整正式结果。")
+    preset_parser.add_argument("--file", default="params/default.toml")
+    preset_parser.add_argument("--method", choices=[method.value for method in RenderMethod])
     return parser
 
 
@@ -114,6 +128,16 @@ def _run_system_info(cpu_percent: float, workers: int | None) -> int:
     return 0
 
 
+def _quality_from_args(args: argparse.Namespace) -> RenderQuality:
+    """把三个 CLI 质量字段转换为唯一生产质量模型。"""
+
+    return RenderQuality(
+        deterministic_samples_per_pixel=args.deterministic_spp,
+        sphere_subdivisions=args.sphere_subdivisions,
+        radiosity_subdivision_levels=args.radiosity_subdivision_levels,
+    )
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """解析参数并执行正式子命令。
 
@@ -137,14 +161,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "render":
         report = render_method(
             RenderMethod(args.method), args.output_dir, args.width, args.height, args.spp,
-            args.max_depth, args.cpu_percent, args.workers, args.seed, args.scene,
+            args.max_depth, args.cpu_percent, args.workers, args.seed, args.scene, True, 0,
+            _quality_from_args(args),
+            args.tile_size,
         )
         print(json.dumps(report, ensure_ascii=False, sort_keys=True))
         return 0
     if args.command == "all":
         report = render_all_methods(
             args.output_dir, args.width, args.height, args.spp, args.max_depth,
-            args.cpu_percent, args.workers, args.seed,
+            args.cpu_percent, args.workers, args.seed, True, _quality_from_args(args),
+            args.tile_size,
         )
         print(json.dumps(report, ensure_ascii=False, sort_keys=True))
         return 0
@@ -157,7 +184,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "readme":
         report = publish_readme_results(
             args.output_dir, args.docs_dir, args.width, args.height, args.spp,
-            args.reference_spp, args.convergence_size, args.cpu_percent, args.workers, args.seed,
+            args.reference_spp, args.convergence_size, args.cpu_percent, args.workers, args.seed, True,
+            _quality_from_args(args),
+            args.tile_size,
+        )
+        print(json.dumps(report, ensure_ascii=False, sort_keys=True))
+        return 0
+    if args.command == "preset":
+        report = (
+            render_method_from_preset(args.file, RenderMethod(args.method))
+            if args.method is not None
+            else publish_readme_from_preset(args.file)
         )
         print(json.dumps(report, ensure_ascii=False, sort_keys=True))
         return 0

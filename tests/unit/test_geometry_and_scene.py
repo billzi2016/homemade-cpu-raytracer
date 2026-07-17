@@ -74,3 +74,23 @@ def test_scene_registry_and_white_furnace_use_physical_production_scene() -> Non
     assert len(furnace.mesh.faces) > 0
     np.testing.assert_array_equal(furnace.environment_radiance, np.ones(3))
     assert all(np.array_equal(material.albedo, np.ones(3)) for material in furnace.materials)
+
+
+def test_mixed_cornell_box_uses_closed_mirror_and_glass_spheres() -> None:
+    """Whitted 变体应包含独立镜面/玻璃球，而不是产生棱镜歧义的玻璃箱。"""
+
+    standard = create_cornell_box()
+    mixed = create_cornell_box(mixed_materials=True)
+    assert len(mixed.mesh.faces) > len(standard.mesh.faces)
+    assert 4 in mixed.mesh.material_indices
+    assert 5 in mixed.mesh.material_indices
+    assert np.any(mixed.mesh.smooth_faces)
+
+
+def test_mixed_sphere_subdivision_controls_mesh_density() -> None:
+    """提高 Icosphere 级数应增加真实几何面数，且不会改变标准盒面数。"""
+
+    coarse = create_cornell_box(mixed_materials=True, sphere_subdivisions=1)
+    fine = create_cornell_box(mixed_materials=True, sphere_subdivisions=3)
+    assert len(fine.mesh.faces) > len(coarse.mesh.faces)
+    assert len(create_cornell_box(sphere_subdivisions=3).mesh.faces) == 36

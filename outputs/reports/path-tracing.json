@@ -1,0 +1,20 @@
+{
+  "cpu_percent": 90.0,
+  "diagnostics": {},
+  "elapsed_seconds": 755.9474559170194,
+  "height": 512,
+  "image": "outputs/renders/path-tracing/cornell-box_512x512.png",
+  "max_depth": 8,
+  "method": "path-tracing",
+  "quality": {
+    "deterministic_samples_per_pixel": 9,
+    "radiosity_subdivision_levels": 3,
+    "sphere_subdivisions": 3
+  },
+  "samples_per_pixel": 128,
+  "scene": "cornell-box",
+  "seed": 20260716,
+  "tiles": 256,
+  "width": 512,
+  "workers": 21
+}

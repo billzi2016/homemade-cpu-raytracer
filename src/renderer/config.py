@@ -7,8 +7,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
+import math
 from pathlib import Path
 
 from renderer.parallel.resources import compute_worker_count
@@ -29,6 +30,46 @@ class RenderMethod(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class RenderQuality:
+    """描述非 Path Tracing 方法的正式质量等级。
+
+    参数:
+        deterministic_samples_per_pixel: Rasterization、Ray Casting 与 Whitted 的
+            规则网格超采样数，必须是正整数完全平方数。
+        sphere_subdivisions: 混合 Cornell Box 的 Icosphere 细分级数。
+        radiosity_subdivision_levels: 每个原始三角形递归四分为 Patch 的级数。
+    异常:
+        ValueError: 任一字段不满足边界或超采样数不是完全平方数时抛出。
+    副作用:
+        无；配置不可变且可安全序列化到多进程 Worker。
+    """
+
+    deterministic_samples_per_pixel: int = 1
+    sphere_subdivisions: int = 2
+    radiosity_subdivision_levels: int = 2
+
+    def __post_init__(self) -> None:
+        """验证质量参数，防止昂贵运行静默采用无法解释的设置。"""
+
+        values = (
+            self.deterministic_samples_per_pixel,
+            self.sphere_subdivisions,
+            self.radiosity_subdivision_levels,
+        )
+        if any(not isinstance(value, int) or isinstance(value, bool) for value in values):
+            raise ValueError("渲染质量参数必须是整数")
+        if self.deterministic_samples_per_pixel <= 0:
+            raise ValueError("deterministic_samples_per_pixel 必须为正整数")
+        grid_size = math.isqrt(self.deterministic_samples_per_pixel)
+        if grid_size * grid_size != self.deterministic_samples_per_pixel:
+            raise ValueError("deterministic_samples_per_pixel 必须是完全平方数")
+        if not 1 <= self.sphere_subdivisions <= 5:
+            raise ValueError("sphere_subdivisions 必须位于 [1, 5]")
+        if not 0 <= self.radiosity_subdivision_levels <= 3:
+            raise ValueError("radiosity_subdivision_levels 必须位于 [0, 3]")
+
+
+@dataclass(frozen=True, slots=True)
 class RenderConfig:
     """描述一次正式渲染的公共配置。
 
@@ -43,6 +84,7 @@ class RenderConfig:
         output_dir: 生成物根目录；模型只保存路径，不主动创建目录。
         tile_width: Tile 宽度，单位为像素，必须为正数。
         tile_height: Tile 高度，单位为像素，必须为正数。
+        quality: 非 Path Tracing 方法共享的不可变质量配置。
 
     异常:
         ValueError: 任意尺寸、资源比例、Worker 数、场景名或 Seed 非法时抛出。
@@ -61,6 +103,7 @@ class RenderConfig:
     output_dir: Path = Path("outputs")
     tile_width: int = 16
     tile_height: int = 16
+    quality: RenderQuality = field(default_factory=RenderQuality)
 
     def __post_init__(self) -> None:
         """校验配置自身能够独立判断的结构约束。
@@ -89,6 +132,8 @@ class RenderConfig:
             raise ValueError("workers 必须为正整数或 None")
         if self.seed < 0:
             raise ValueError("seed 必须为非负整数")
+        if not isinstance(self.quality, RenderQuality):
+            raise ValueError("quality 必须是 RenderQuality")
 
     def resolved_workers(self, logical_count: int | None = None) -> int:
         """根据公共资源策略解析最终 Worker 数。

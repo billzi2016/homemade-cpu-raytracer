@@ -1,0 +1,20 @@
+{
+  "chart": "outputs/charts/path_tracing_convergence.png",
+  "images": [
+    "outputs/renders/path_tracing/convergence_1spp.png",
+    "outputs/renders/path_tracing/convergence_4spp.png",
+    "outputs/renders/path_tracing/convergence_16spp.png"
+  ],
+  "levels": [
+    1,
+    4,
+    16
+  ],
+  "mse": [
+    0.12329368886952262,
+    0.03434444101152751,
+    0.007880444218240329
+  ],
+  "reference_image": "outputs/renders/path_tracing/convergence_reference_1024spp.png",
+  "reference_spp": 1024
+}

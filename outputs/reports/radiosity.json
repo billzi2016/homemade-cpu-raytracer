@@ -1,0 +1,28 @@
+{
+  "cpu_percent": 90.0,
+  "diagnostics": {
+    "form_factor_max_row_sum": 0.9999999999989997,
+    "form_factor_min_row_sum": 0.0,
+    "residuals": [
+      3.2259050578251096e-17,
+      3.7157051279506224e-17,
+      3.602639725101921e-17
+    ]
+  },
+  "elapsed_seconds": 22.508093959186226,
+  "height": 512,
+  "image": "outputs/renders/radiosity/cornell-box_512x512.png",
+  "max_depth": null,
+  "method": "radiosity",
+  "quality": {
+    "deterministic_samples_per_pixel": 9,
+    "radiosity_subdivision_levels": 3,
+    "sphere_subdivisions": 3
+  },
+  "samples_per_pixel": null,
+  "scene": "cornell-box",
+  "seed": 20260716,
+  "tiles": 1,
+  "width": 512,
+  "workers": 1
+}

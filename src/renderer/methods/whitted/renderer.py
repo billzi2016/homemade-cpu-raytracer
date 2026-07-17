@@ -59,7 +59,10 @@ def trace_whitted(
         return material.emission.astype(np.float64, copy=True)
 
     reflected_direction = reflect(ray.direction, hit.normal)
-    reflected_ray = Ray(hit.point + hit.normal * ray_epsilon, reflected_direction)
+    oriented_geometric = hit.geometric_normal if hit.front_face else -hit.geometric_normal
+    # 平滑法线决定理想光学方向；几何法线决定射线从真实三角面哪一侧偏移，避免
+    # 插值法线在轮廓附近把新射线起点推入网格内部。
+    reflected_ray = Ray(hit.point + oriented_geometric * ray_epsilon, reflected_direction)
     reflected = trace_whitted(reflected_ray, scene, intersector, depth + 1, max_depth, ray_epsilon)
 
     if isinstance(material, MirrorMaterial):
@@ -75,7 +78,7 @@ def trace_whitted(
     reflection_weight = schlick_reflectance(cosine, incident_ior, transmitted_ior)
     # 折射方向穿过当前着色法线的反侧，因此沿 -normal 偏移，避免立即再次命中
     # 同一三角形。反射和透射 Fresnel 权重之和严格为 1；透射颜色又不超过 1。
-    refracted_ray = Ray(hit.point - hit.normal * ray_epsilon, refracted_direction)
+    refracted_ray = Ray(hit.point - oriented_geometric * ray_epsilon, refracted_direction)
     transmitted = trace_whitted(refracted_ray, scene, intersector, depth + 1, max_depth, ray_epsilon)
     result = reflection_weight * reflected
     result += (1.0 - reflection_weight) * material.transmittance * transmitted

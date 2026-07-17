@@ -10,7 +10,7 @@ import numpy as np
 import trimesh
 
 from renderer.core.camera import Camera
-from renderer.geometry.mesh import TriangleMesh
+from renderer.geometry.mesh import MeshPart, TriangleMesh
 from renderer.lights.area import AreaLight
 from renderer.lights.point import PointLight
 from renderer.materials import DielectricMaterial, DiffuseMaterial, MirrorMaterial, SurfaceMaterial
@@ -38,11 +38,20 @@ def _box(extents: tuple[float, float, float], center: tuple[float, float, float]
     return mesh
 
 
-def create_cornell_box(*, mixed_materials: bool = False) -> Scene:
+def _sphere(radius: float, center: tuple[float, float, float], subdivisions: int) -> trimesh.Trimesh:
+    """用指定级数的 Trimesh Icosphere 创建闭合球体并平移到世界坐标。"""
+
+    mesh = trimesh.creation.icosphere(subdivisions=subdivisions, radius=radius)
+    mesh.apply_translation(np.asarray(center, dtype=np.float64))
+    return mesh
+
+
+def create_cornell_box(*, mixed_materials: bool = False, sphere_subdivisions: int = 2) -> Scene:
     """创建标准或镜面/玻璃混合 Cornell Box。
 
     参数:
         mixed_materials: 为真时两个内部箱体分别使用镜面和玻璃；否则均为白色漫反射。
+        sphere_subdivisions: 混合场景 Icosphere 细分级数，必须位于 `[1, 5]`。
     返回值:
         完整、离线可用的 :class:`Scene`。
     异常:
@@ -50,6 +59,9 @@ def create_cornell_box(*, mixed_materials: bool = False) -> Scene:
     副作用:
         无网络和文件访问；Trimesh 对象仅在函数内部创建。
     """
+
+    if not isinstance(sphere_subdivisions, int) or isinstance(sphere_subdivisions, bool) or not 1 <= sphere_subdivisions <= 5:
+        raise ValueError("sphere_subdivisions 必须位于 [1, 5]")
 
     white = DiffuseMaterial(np.array([0.75, 0.75, 0.75]))
     red = DiffuseMaterial(np.array([0.75, 0.12, 0.10]))
@@ -59,19 +71,36 @@ def create_cornell_box(*, mixed_materials: bool = False) -> Scene:
     glass = DielectricMaterial(np.array([0.98, 0.98, 0.98]), 1.5)
     materials: tuple[SurfaceMaterial, ...] = (white, red, green, light_material, mirror, glass)
 
-    parts: list[tuple[trimesh.Trimesh, int]] = [
-        (_quad([[-1, 0, 0], [1, 0, 0], [1, 0, -2], [-1, 0, -2]], [0, 1, 0]), 0),
-        (_quad([[-1, 2, -2], [1, 2, -2], [1, 2, 0], [-1, 2, 0]], [0, -1, 0]), 0),
-        (_quad([[-1, 0, -2], [1, 0, -2], [1, 2, -2], [-1, 2, -2]], [0, 0, 1]), 0),
-        (_quad([[-1, 0, -2], [-1, 2, -2], [-1, 2, 0], [-1, 0, 0]], [1, 0, 0]), 1),
-        (_quad([[1, 0, 0], [1, 2, 0], [1, 2, -2], [1, 0, -2]], [-1, 0, 0]), 2),
-        (_quad([[-0.35, 1.99, -0.75], [0.35, 1.99, -0.75], [0.35, 1.99, -1.25], [-0.35, 1.99, -1.25]], [0, -1, 0]), 3),
-        (_box((0.62, 0.65, 0.62), (-0.38, 0.325, -1.05), -18.0), 4 if mixed_materials else 0),
-        (_box((0.62, 1.20, 0.62), (0.40, 0.60, -1.35), 16.0), 5 if mixed_materials else 0),
+    parts: list[MeshPart] = [
+        MeshPart(_quad([[-1, 0, 0], [1, 0, 0], [1, 0, -2], [-1, 0, -2]], [0, 1, 0]), 0),
+        MeshPart(_quad([[-1, 2, -2], [1, 2, -2], [1, 2, 0], [-1, 2, 0]], [0, -1, 0]), 0),
+        MeshPart(_quad([[-1, 0, -2], [1, 0, -2], [1, 2, -2], [-1, 2, -2]], [0, 0, 1]), 0),
+        MeshPart(_quad([[-1, 0, -2], [-1, 2, -2], [-1, 2, 0], [-1, 0, 0]], [1, 0, 0]), 1),
+        MeshPart(_quad([[1, 0, 0], [1, 2, 0], [1, 2, -2], [1, 0, -2]], [-1, 0, 0]), 2),
+        MeshPart(_quad([[-0.35, 1.99, -0.75], [0.35, 1.99, -0.75], [0.35, 1.99, -1.25], [-0.35, 1.99, -1.25]], [0, -1, 0]), 3),
     ]
+    if mixed_materials:
+        # 玻璃长方体会产生复杂棱镜光路，难以直观看出 Snell 折射是否正确；闭合球体
+        # 保留真实反射/折射，同时让 Whitted 的镜面和介质效果具有清晰可验证的轮廓。
+        parts.extend(
+            [
+                MeshPart(_sphere(0.34, (-0.38, 0.34, -1.05), sphere_subdivisions), 4, True),
+                MeshPart(_sphere(0.38, (0.40, 0.38, -1.35), sphere_subdivisions), 5, True),
+            ]
+        )
+    else:
+        parts.extend(
+            [
+                MeshPart(_box((0.62, 0.65, 0.62), (-0.38, 0.325, -1.05), -18.0), 0),
+                MeshPart(_box((0.62, 1.20, 0.62), (0.40, 0.60, -1.35), 16.0), 0),
+            ]
+        )
     mesh = TriangleMesh.combine(parts)
-    camera = Camera(np.array([0.0, 1.0, 3.2]), np.array([0.0, 1.0, -1.0]), np.array([0.0, 1.0, 0.0]), 39.0)
+    # 35° 视场角与相机距离匹配 2×2 的正方形开口，避免旧结果四周出现大块黑框。
+    camera = Camera(np.array([0.0, 1.0, 3.2]), np.array([0.0, 1.0, -1.0]), np.array([0.0, 1.0, 0.0]), 35.0)
     # half_u × half_v 指向 -Y，使单面光源朝房间内部发光。
     area_light = AreaLight(np.array([0.0, 1.99, -1.0]), np.array([0.35, 0.0, 0.0]), np.array([0.0, 0.0, 0.25]), np.array([15.0, 15.0, 15.0]))
-    point_light = PointLight(np.array([0.0, 1.75, -1.0]), np.array([18.0, 18.0, 18.0]))
+    # 面光源面积为 4|half_u×half_v|=0.35；用 Le×area=5.25 标定点光强度，
+    # 使局部光照方法不再相对 Path Tracing 与 Radiosity 严重过曝。
+    point_light = PointLight(np.array([0.0, 1.75, -1.0]), np.array([5.25, 5.25, 5.25]))
     return Scene("cornell-box-mixed" if mixed_materials else "cornell-box", mesh, materials, camera, (area_light,), (point_light,))

@@ -8,7 +8,7 @@ import numpy as np
 import trimesh
 
 from renderer.core.camera import Camera
-from renderer.geometry.mesh import TriangleMesh
+from renderer.geometry.mesh import MeshPart, TriangleMesh
 from renderer.materials import DiffuseMaterial
 from renderer.scenes.scene import Scene
 
@@ -17,7 +17,8 @@ def create_white_furnace() -> Scene:
     """返回单位白球与单位环境的验证场景，无网络或文件副作用。"""
 
     sphere = trimesh.creation.icosphere(subdivisions=2, radius=1.0)
-    mesh = TriangleMesh.combine([(sphere, 0)])
+    # 白炉保持原有几何法线语义，避免 Whitted 的展示质量参数改变 Path 验证基线。
+    mesh = TriangleMesh.combine([MeshPart(sphere, 0)])
     white = DiffuseMaterial(np.ones(3))
     camera = Camera(np.array([0.0, 0.0, 3.0]), np.zeros(3), np.array([0.0, 1.0, 0.0]), 40.0)
     return Scene(

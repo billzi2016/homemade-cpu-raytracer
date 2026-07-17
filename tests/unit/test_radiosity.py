@@ -9,14 +9,17 @@ from renderer.scenes import create_cornell_box
 
 
 def test_form_factors_are_conservative_and_reciprocal() -> None:
-    """封闭 Cornell Box 的离散矩阵必须非负、行和为 1 且满足面积互易。"""
+    """开放 Cornell Box 的离散矩阵必须非负、行和不超 1 且满足面积互易。"""
 
     scene = create_cornell_box()
     patches = build_patches(scene.mesh)
     factors = compute_form_factors(scene.mesh, patches)
 
     assert np.all(factors >= 0.0)
-    np.testing.assert_allclose(factors.sum(axis=1), np.ones(len(factors)), rtol=1e-8, atol=1e-9)
+    row_sums = factors.sum(axis=1)
+    assert np.all(row_sums <= 1.0 + 1e-12)
+    assert np.any(row_sums < 0.99)
+    assert np.any(row_sums > 0.0)
     exchange = patches.areas[:, None] * factors
     np.testing.assert_allclose(exchange, exchange.T, rtol=1e-10, atol=1e-11)
 

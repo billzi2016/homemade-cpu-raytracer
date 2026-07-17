@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from renderer.config import RenderConfig, RenderMethod
+from renderer.config import RenderConfig, RenderMethod, RenderQuality
 
 
 def test_render_config_defaults_are_valid_and_resolve_workers() -> None:
@@ -52,3 +52,14 @@ def test_render_method_contains_exactly_the_five_spec_methods() -> None:
         "radiosity",
         "path-tracing",
     }
+
+
+def test_render_quality_requires_square_deterministic_sample_count() -> None:
+    """规则超采样必须能排成方形网格，其他质量参数也必须受明确边界约束。"""
+
+    quality = RenderQuality(4, 3, 3)
+    assert quality.deterministic_samples_per_pixel == 4
+    with pytest.raises(ValueError):
+        RenderQuality(deterministic_samples_per_pixel=3)
+    with pytest.raises(ValueError):
+        RenderQuality(sphere_subdivisions=6)

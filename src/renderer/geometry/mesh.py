@@ -13,12 +13,27 @@ import trimesh
 
 
 @dataclass(frozen=True, slots=True)
+class MeshPart:
+    """描述一个待合并 Trimesh 部件的材质与法线策略。
+
+    ``smooth`` 只控制命中后的着色法线插值，不改变几何面、可见性或正反面判断。
+    房间与方盒必须保持 False；真正连续的球面可以设为 True。
+    """
+
+    mesh: trimesh.Trimesh
+    material_index: int
+    smooth: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class TriangleMesh:
     """只读三角网格；非法形状、索引或退化面会抛出 ``ValueError``。"""
 
     vertices: np.ndarray
     faces: np.ndarray
     material_indices: np.ndarray
+    vertex_normals: np.ndarray | None = None
+    smooth_faces: np.ndarray | None = None
 
     def __post_init__(self) -> None:
         """复制、校验并冻结网格数组，无外部副作用。"""
@@ -26,23 +41,43 @@ class TriangleMesh:
         vertices = np.asarray(self.vertices, dtype=np.float64).copy()
         faces = np.asarray(self.faces, dtype=np.int64).copy()
         materials = np.asarray(self.material_indices, dtype=np.int64).copy()
+        if self.vertex_normals is None:
+            vertex_normals = np.zeros_like(vertices)
+        else:
+            vertex_normals = np.asarray(self.vertex_normals, dtype=np.float64).copy()
+        if self.smooth_faces is None:
+            smooth_faces = np.zeros(len(faces), dtype=np.bool_)
+        else:
+            smooth_faces = np.asarray(self.smooth_faces, dtype=np.bool_).copy()
         if vertices.ndim != 2 or vertices.shape[1] != 3 or not np.all(np.isfinite(vertices)):
             raise ValueError("vertices 必须是有限的 (N, 3) 数组")
         if faces.ndim != 2 or faces.shape[1] != 3 or len(faces) == 0:
             raise ValueError("faces 必须是非空 (M, 3) 整数数组")
         if materials.shape != (len(faces),) or np.any(materials < 0):
             raise ValueError("material_indices 必须为每个面提供非负索引")
+        if vertex_normals.shape != vertices.shape or not np.all(np.isfinite(vertex_normals)):
+            raise ValueError("vertex_normals 必须是与 vertices 对齐的有限数组")
+        if smooth_faces.shape != (len(faces),):
+            raise ValueError("smooth_faces 必须为每个面提供布尔标记")
         if np.any(faces < 0) or np.any(faces >= len(vertices)):
             raise ValueError("faces 包含越界顶点索引")
         triangles = vertices[faces]
         areas2 = np.linalg.norm(np.cross(triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0]), axis=1)
         if np.any(areas2 <= np.finfo(np.float64).eps):
             raise ValueError("网格不能包含退化三角形")
-        for array in (vertices, faces, materials):
+        smooth_vertex_indices = np.unique(faces[smooth_faces])
+        if len(smooth_vertex_indices) > 0:
+            lengths = np.linalg.norm(vertex_normals[smooth_vertex_indices], axis=1)
+            if np.any(lengths <= np.finfo(np.float64).eps):
+                raise ValueError("平滑面引用的顶点必须具有非零法线")
+            vertex_normals[smooth_vertex_indices] /= lengths[:, None]
+        for array in (vertices, faces, materials, vertex_normals, smooth_faces):
             array.flags.writeable = False
         object.__setattr__(self, "vertices", vertices)
         object.__setattr__(self, "faces", faces)
         object.__setattr__(self, "material_indices", materials)
+        object.__setattr__(self, "vertex_normals", vertex_normals)
+        object.__setattr__(self, "smooth_faces", smooth_faces)
 
     @property
     def triangles(self) -> np.ndarray:
@@ -59,11 +94,11 @@ class TriangleMesh:
         return normals / np.linalg.norm(normals, axis=1, keepdims=True)
 
     @classmethod
-    def combine(cls, parts: list[tuple[trimesh.Trimesh, int]]) -> "TriangleMesh":
+    def combine(cls, parts: list[MeshPart]) -> "TriangleMesh":
         """组合 Trimesh 部件并分配逐面材质索引。
 
         参数:
-            parts: ``(mesh, material_index)`` 列表；网格必须含三角面。
+            parts: 显式 :class:`MeshPart` 列表；网格必须含三角面。
         返回值:
             合并后的独立 :class:`TriangleMesh`。
         异常:
@@ -77,14 +112,24 @@ class TriangleMesh:
         vertices: list[np.ndarray] = []
         faces: list[np.ndarray] = []
         materials: list[np.ndarray] = []
+        vertex_normals: list[np.ndarray] = []
+        smooth_faces: list[np.ndarray] = []
         offset = 0
-        for mesh, material_index in parts:
-            if material_index < 0:
+        for part in parts:
+            if part.material_index < 0:
                 raise ValueError("material_index 不能为负")
-            triangulated = mesh.copy()
+            triangulated = part.mesh.copy()
             vertices.append(np.asarray(triangulated.vertices, dtype=np.float64))
+            vertex_normals.append(np.asarray(triangulated.vertex_normals, dtype=np.float64))
             local_faces = np.asarray(triangulated.faces, dtype=np.int64)
             faces.append(local_faces + offset)
-            materials.append(np.full(len(local_faces), material_index, dtype=np.int64))
+            materials.append(np.full(len(local_faces), part.material_index, dtype=np.int64))
+            smooth_faces.append(np.full(len(local_faces), part.smooth, dtype=np.bool_))
             offset += len(triangulated.vertices)
-        return cls(np.vstack(vertices), np.vstack(faces), np.concatenate(materials))
+        return cls(
+            np.vstack(vertices),
+            np.vstack(faces),
+            np.concatenate(materials),
+            np.vstack(vertex_normals),
+            np.concatenate(smooth_faces),
+        )

@@ -1,0 +1,118 @@
+{
+  "comparison": "outputs/comparisons/five_methods.png",
+  "methods": [
+    {
+      "cpu_percent": 90.0,
+      "diagnostics": {},
+      "elapsed_seconds": 2.740317542105913,
+      "height": 512,
+      "image": "outputs/renders/rasterization/cornell-box_512x512.png",
+      "max_depth": null,
+      "method": "rasterization",
+      "quality": {
+        "deterministic_samples_per_pixel": 9,
+        "radiosity_subdivision_levels": 3,
+        "sphere_subdivisions": 3
+      },
+      "report": "outputs/reports/rasterization.json",
+      "samples_per_pixel": null,
+      "scene": "cornell-box",
+      "seed": 20260716,
+      "tiles": 256,
+      "width": 512,
+      "workers": 21
+    },
+    {
+      "cpu_percent": 90.0,
+      "diagnostics": {},
+      "elapsed_seconds": 11.154235707595944,
+      "height": 512,
+      "image": "outputs/renders/ray-casting/cornell-box_512x512.png",
+      "max_depth": null,
+      "method": "ray-casting",
+      "quality": {
+        "deterministic_samples_per_pixel": 9,
+        "radiosity_subdivision_levels": 3,
+        "sphere_subdivisions": 3
+      },
+      "report": "outputs/reports/ray-casting.json",
+      "samples_per_pixel": null,
+      "scene": "cornell-box",
+      "seed": 20260716,
+      "tiles": 256,
+      "width": 512,
+      "workers": 21
+    },
+    {
+      "cpu_percent": 90.0,
+      "diagnostics": {},
+      "elapsed_seconds": 253.6120819170028,
+      "height": 512,
+      "image": "outputs/renders/whitted/cornell-box-mixed_512x512.png",
+      "max_depth": 8,
+      "method": "whitted",
+      "quality": {
+        "deterministic_samples_per_pixel": 9,
+        "radiosity_subdivision_levels": 3,
+        "sphere_subdivisions": 3
+      },
+      "report": "outputs/reports/whitted.json",
+      "samples_per_pixel": null,
+      "scene": "cornell-box-mixed",
+      "seed": 20260716,
+      "tiles": 256,
+      "width": 512,
+      "workers": 21
+    },
+    {
+      "cpu_percent": 90.0,
+      "diagnostics": {
+        "form_factor_max_row_sum": 0.9999999999989997,
+        "form_factor_min_row_sum": 0.0,
+        "residuals": [
+          3.2259050578251096e-17,
+          3.7157051279506224e-17,
+          3.602639725101921e-17
+        ]
+      },
+      "elapsed_seconds": 22.508093959186226,
+      "height": 512,
+      "image": "outputs/renders/radiosity/cornell-box_512x512.png",
+      "max_depth": null,
+      "method": "radiosity",
+      "quality": {
+        "deterministic_samples_per_pixel": 9,
+        "radiosity_subdivision_levels": 3,
+        "sphere_subdivisions": 3
+      },
+      "report": "outputs/reports/radiosity.json",
+      "samples_per_pixel": null,
+      "scene": "cornell-box",
+      "seed": 20260716,
+      "tiles": 1,
+      "width": 512,
+      "workers": 1
+    },
+    {
+      "cpu_percent": 90.0,
+      "diagnostics": {},
+      "elapsed_seconds": 755.9474559170194,
+      "height": 512,
+      "image": "outputs/renders/path-tracing/cornell-box_512x512.png",
+      "max_depth": 8,
+      "method": "path-tracing",
+      "quality": {
+        "deterministic_samples_per_pixel": 9,
+        "radiosity_subdivision_levels": 3,
+        "sphere_subdivisions": 3
+      },
+      "report": "outputs/reports/path-tracing.json",
+      "samples_per_pixel": 128,
+      "scene": "cornell-box",
+      "seed": 20260716,
+      "tiles": 256,
+      "width": 512,
+      "workers": 21
+    }
+  ]
+}

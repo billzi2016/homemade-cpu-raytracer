@@ -1,7 +1,8 @@
 """非光追 Rasterization baseline 的生产渲染入口。
 
-渲染器投影共享三角网格、执行 CPU Z-Buffer，并按面写入 Lambert 直接光颜色。
-输出保持线性 HDR RGB；PNG 编码由公共输出层统一完成。
+渲染器投影共享三角网格、执行 CPU Z-Buffer，并在每个三角形顶点计算 Lambert
+直接光，再用透视校正权重插值颜色。输出保持线性 HDR RGB；PNG 编码由公共输出
+层统一完成。
 """
 
 from __future__ import annotations
@@ -41,7 +42,7 @@ def render_rasterization_tile(scene: Scene, width: int, height: int, tile: Tile)
     local_screen = screen - np.array([tile.x0, tile.y0], dtype=np.float64)
     depth_buffer = np.full((tile.height, tile.width), np.inf, dtype=np.float64)
     face_buffer = np.full((tile.height, tile.width), -1, dtype=np.int64)
-    face_colors = np.zeros((len(scene.mesh.faces), 3), dtype=np.float64)
+    image = np.zeros((tile.height, tile.width, 3), dtype=np.float64)
     triangles = scene.mesh.triangles
     normals = scene.mesh.face_normals
 
@@ -51,18 +52,25 @@ def render_rasterization_tile(scene: Scene, width: int, height: int, tile: Tile)
         # 实现正式三角形裁剪，而不是投影负深度顶点产生翻转伪影。
         if np.any(face_depths <= 1e-9):
             continue
-        rasterize_triangle(local_screen[face], face_depths, face_index, depth_buffer, face_buffer)
         material = scene.materials[int(scene.mesh.material_indices[face_index])]
-        face_colors[face_index] = shade_face(
-            triangles[face_index].mean(axis=0),
-            normals[face_index],
-            material,
-            scene.point_lights,
+        # 同一平面相邻三角形在公共世界坐标顶点上计算出完全相同的光照值，随后
+        # 由 Z-Buffer 做透视校正插值。这样保留真实 Lambert 梯度，同时消除旧版
+        # “每个三角形只在质心着色一次”造成的明显对角线亮度断层。
+        vertex_colors = np.vstack(
+            [
+                shade_face(vertex, normals[face_index], material, scene.point_lights)
+                for vertex in triangles[face_index]
+            ]
         )
-
-    image = np.zeros((tile.height, tile.width, 3), dtype=np.float64)
-    visible = face_buffer >= 0
-    image[visible] = face_colors[face_buffer[visible]]
+        rasterize_triangle(
+            local_screen[face],
+            face_depths,
+            face_index,
+            depth_buffer,
+            face_buffer,
+            vertex_colors,
+            image,
+        )
     return image
 
 

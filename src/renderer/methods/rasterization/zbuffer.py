@@ -21,6 +21,8 @@ def rasterize_triangle(
     face_index: int,
     depth_buffer: np.ndarray,
     face_buffer: np.ndarray,
+    vertex_colors: np.ndarray | None = None,
+    color_buffer: np.ndarray | None = None,
 ) -> int:
     """把一个屏幕三角形写入共享深度与面索引缓冲。
 
@@ -30,6 +32,8 @@ def rasterize_triangle(
         face_index: 成功深度测试后写入的非负面索引。
         depth_buffer: 形状 ``(H, W)`` 的可写浮点缓冲，初始值通常为正无穷。
         face_buffer: 同形状可写整数缓冲，未命中值通常为 ``-1``。
+        vertex_colors: 可选 ``(3, 3)`` 线性 RGB 顶点颜色。
+        color_buffer: 提供顶点颜色时必需的 ``(H, W, 3)`` 可写颜色缓冲。
 
     返回值:
         本次调用实际更新的像素数量。
@@ -49,6 +53,15 @@ def rasterize_triangle(
         raise ValueError("光栅化深度必须是有限正数")
     if depth_buffer.ndim != 2 or face_buffer.shape != depth_buffer.shape:
         raise ValueError("深度缓冲和面缓冲必须是相同二维形状")
+    if (vertex_colors is None) != (color_buffer is None):
+        raise ValueError("vertex_colors 与 color_buffer 必须同时提供或同时省略")
+    colors: np.ndarray | None = None
+    if vertex_colors is not None and color_buffer is not None:
+        colors = np.asarray(vertex_colors, dtype=np.float64)
+        if colors.shape != (3, 3) or not np.all(np.isfinite(colors)) or np.any(colors < 0.0):
+            raise ValueError("vertex_colors 必须是非负有限 (3, 3) 数组")
+        if color_buffer.shape != (*depth_buffer.shape, 3):
+            raise ValueError("color_buffer 必须与深度缓冲宽高一致并具有三个通道")
     if face_index < 0:
         raise ValueError("face_index 不能为负")
 
@@ -80,5 +93,11 @@ def rasterize_triangle(
             if depth < depth_buffer[pixel_y, pixel_x]:
                 depth_buffer[pixel_y, pixel_x] = depth
                 face_buffer[pixel_y, pixel_x] = face_index
+                if colors is not None and color_buffer is not None:
+                    # 属性使用透视校正权重 (w_i/z_i)/Σ(w/z)，避免远近 Patch 在
+                    # 屏幕空间线性插值时出现不符合透视投影的亮度弯折。
+                    perspective_weights = np.array([w0, w1, w2]) * inverse_depth
+                    perspective_weights /= interpolated_inverse
+                    color_buffer[pixel_y, pixel_x] = perspective_weights @ colors
                 updated += 1
     return updated
