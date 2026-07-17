@@ -4,12 +4,14 @@
 从而保持依赖方向由高层算法指向稳定公共抽象。
 """
 
+from renderer.core.camera import Camera
 from renderer.core.color import encode_rgb8, linear_to_srgb, reinhard_tone_map
 from renderer.core.ray import Ray
 from renderer.core.types import FloatArray, Vec3
 
 __all__ = [
     "FloatArray",
+    "Camera",
     "Ray",
     "Vec3",
     "encode_rgb8",
