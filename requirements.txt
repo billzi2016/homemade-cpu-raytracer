@@ -1,0 +1,12 @@
+# 正式运行依赖；版本下界与 pyproject.toml 保持一致。
+matplotlib>=3.9
+numba>=0.61
+numpy>=2.1
+Pillow>=11.0
+psutil>=6.1
+scipy>=1.14
+tqdm>=4.67
+trimesh>=4.5
+
+# 正式测试依赖。
+pytest>=8.3
