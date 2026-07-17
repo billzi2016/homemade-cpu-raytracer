@@ -1,0 +1,49 @@
+# Python 字节码与解释器缓存
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 测试、类型检查、覆盖率与性能工具缓存
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+.coverage.*
+htmlcov/
+.benchmarks/
+
+# Numba 与 JIT 缓存
+*.nbc
+*.nbi
+
+# 虚拟环境与本地环境变量
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
+
+# Python 构建和打包产物
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# 下载数据与渲染生成物；README 精选图片位于 docs/images/，不忽略
+data/downloads/
+outputs/
+
+# 日志、临时文件与进程状态
+*.log
+*.tmp
+*.temp
+*.pid
+
+# macOS 与常见编辑器配置
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
