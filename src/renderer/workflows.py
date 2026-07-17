@@ -186,6 +186,7 @@ def publish_readme_results(
     height: int = 128,
     samples_per_pixel: int = 32,
     reference_spp: int = 64,
+    convergence_size: int = 128,
     cpu_percent: float = 90.0,
     workers: int | None = None,
     seed: int = 20260716,
@@ -197,8 +198,8 @@ def publish_readme_results(
     )
     convergence = render_convergence(
         output_root,
-        width,
-        height,
+        convergence_size,
+        convergence_size,
         (1, 4, 16),
         reference_spp,
         cpu_percent,

@@ -4,7 +4,7 @@ import numpy as np
 
 from renderer.methods.radiosity import render_radiosity
 from renderer.methods.radiosity.form_factors import compute_form_factors
-from renderer.methods.radiosity.patches import build_patches
+from renderer.methods.radiosity.patches import build_patches, subdivide_mesh
 from renderer.scenes import create_cornell_box
 
 
@@ -24,7 +24,7 @@ def test_form_factors_are_conservative_and_reciprocal() -> None:
 def test_radiosity_solves_and_renders_color_bleeding() -> None:
     """正式场景方程残差应很小，白色面应收到红绿间接能量。"""
 
-    result = render_radiosity(create_cornell_box(), 36, 36)
+    result = render_radiosity(create_cornell_box(), 36, 36, subdivision_levels=1)
 
     assert result.image.shape == (36, 36, 3)
     assert np.all(np.isfinite(result.image))
@@ -33,3 +33,13 @@ def test_radiosity_solves_and_renders_color_bleeding() -> None:
     assert np.count_nonzero(result.image) > 36 * 36 // 4
     white_patch_colors = result.patch_radiosity[:6]
     assert np.any(np.abs(white_patch_colors[:, 0] - white_patch_colors[:, 1]) > 1e-6)
+
+
+def test_radiosity_subdivision_preserves_area_and_materials() -> None:
+    """两级细分应产生十六倍 Patch，同时保持总面积与材质覆盖。"""
+
+    mesh = create_cornell_box().mesh
+    subdivided = subdivide_mesh(mesh, 2)
+    assert len(subdivided.faces) == len(mesh.faces) * 16
+    np.testing.assert_allclose(build_patches(subdivided).areas.sum(), build_patches(mesh).areas.sum())
+    assert set(subdivided.material_indices.tolist()) == set(mesh.material_indices.tolist())

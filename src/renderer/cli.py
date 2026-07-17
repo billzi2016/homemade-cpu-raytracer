@@ -78,6 +78,7 @@ def build_parser() -> argparse.ArgumentParser:
     readme_parser = subparsers.add_parser("readme", parents=[common], help="生成 README 的全部真实结果。")
     readme_parser.add_argument("--docs-dir", default="docs/images")
     readme_parser.add_argument("--reference-spp", type=int, default=64)
+    readme_parser.add_argument("--convergence-size", type=int, default=128)
     return parser
 
 
@@ -156,7 +157,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "readme":
         report = publish_readme_results(
             args.output_dir, args.docs_dir, args.width, args.height, args.spp,
-            args.reference_spp, args.cpu_percent, args.workers, args.seed,
+            args.reference_spp, args.convergence_size, args.cpu_percent, args.workers, args.seed,
         )
         print(json.dumps(report, ensure_ascii=False, sort_keys=True))
         return 0

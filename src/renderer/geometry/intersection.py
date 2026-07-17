@@ -10,9 +10,47 @@ from dataclasses import dataclass
 import math
 
 import numpy as np
+from numba import njit
 
 from renderer.core.ray import Ray
 from renderer.geometry.mesh import TriangleMesh
+
+
+@njit(cache=True)
+def _nearest_triangle_hit(
+    triangles: np.ndarray,
+    origin: np.ndarray,
+    direction: np.ndarray,
+    t_min: float,
+    t_max: float,
+) -> tuple[int, float]:
+    """用无分配循环返回最近面索引与距离；公开校验由 Python 包装层负责。"""
+
+    closest_index = -1
+    closest_distance = t_max
+    epsilon = 1e-12
+    for index in range(triangles.shape[0]):
+        vertex0 = triangles[index, 0]
+        edge1 = triangles[index, 1] - vertex0
+        edge2 = triangles[index, 2] - vertex0
+        pvec = np.cross(direction, edge2)
+        determinant = np.dot(edge1, pvec)
+        if abs(determinant) <= epsilon:
+            continue
+        inverse = 1.0 / determinant
+        tvec = origin - vertex0
+        u = np.dot(tvec, pvec) * inverse
+        if u < 0.0 or u > 1.0:
+            continue
+        qvec = np.cross(tvec, edge1)
+        v = np.dot(direction, qvec) * inverse
+        if v < 0.0 or u + v > 1.0:
+            continue
+        distance = np.dot(edge2, qvec) * inverse
+        if t_min <= distance <= closest_distance:
+            closest_index = index
+            closest_distance = distance
+    return closest_index, closest_distance
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,10 +73,7 @@ class TriangleIntersector:
         """预计算三角形边；参数为正式共享网格，无外部副作用。"""
 
         self._mesh = mesh
-        triangles = mesh.triangles
-        self._v0 = triangles[:, 0]
-        self._edge1 = triangles[:, 1] - triangles[:, 0]
-        self._edge2 = triangles[:, 2] - triangles[:, 0]
+        self._triangles = np.ascontiguousarray(mesh.triangles, dtype=np.float64)
         self._normals = mesh.face_normals
 
     def intersect(self, ray: Ray, t_min: float = 1e-6, t_max: float = math.inf) -> HitRecord | None:
@@ -50,30 +85,21 @@ class TriangleIntersector:
 
         if not math.isfinite(t_min) or t_min < 0.0 or math.isnan(t_max) or t_max <= t_min:
             raise ValueError("求交距离区间非法")
-        directions = np.broadcast_to(ray.direction, self._edge2.shape)
-        pvec = np.cross(directions, self._edge2)
-        determinant = np.einsum("ij,ij->i", self._edge1, pvec)
-        valid = np.abs(determinant) > 1e-12
-        inverse = np.zeros_like(determinant)
-        inverse[valid] = 1.0 / determinant[valid]
-        tvec = ray.origin - self._v0
-        u = np.einsum("ij,ij->i", tvec, pvec) * inverse
-        valid &= (u >= 0.0) & (u <= 1.0)
-        qvec = np.cross(tvec, self._edge1)
-        v = np.einsum("ij,ij->i", directions, qvec) * inverse
-        valid &= (v >= 0.0) & ((u + v) <= 1.0)
-        distance = np.einsum("ij,ij->i", self._edge2, qvec) * inverse
-        valid &= (distance >= t_min) & (distance <= t_max)
-        indices = np.flatnonzero(valid)
-        if len(indices) == 0:
+        face_index, distance = _nearest_triangle_hit(
+            self._triangles,
+            ray.origin,
+            ray.direction,
+            t_min,
+            t_max,
+        )
+        if face_index < 0:
             return None
-        face_index = int(indices[np.argmin(distance[indices])])
         geometric = self._normals[face_index].copy()
         front_face = float(np.dot(ray.direction, geometric)) < 0.0
         normal = geometric if front_face else -geometric
         return HitRecord(
-            distance=float(distance[face_index]),
-            point=ray.at(float(distance[face_index])),
+            distance=float(distance),
+            point=ray.at(float(distance)),
             normal=normal.copy(),
             geometric_normal=geometric,
             face_index=face_index,

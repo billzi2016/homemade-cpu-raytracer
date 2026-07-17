@@ -43,12 +43,14 @@ def compute_form_factors(
     mesh: TriangleMesh,
     patches: PatchSet,
     ray_epsilon: float = 1e-5,
+    visibility_mesh: TriangleMesh | None = None,
 ) -> np.ndarray:
     """计算封闭场景的 Form Factor 矩阵。
 
     参数:
-        mesh/patches: 同一正式场景的网格与 Patch 几何。
+        mesh/patches: 同一正式场景的 Patch 网格与 Patch 几何。
         ray_epsilon: 可见性射线端点偏移，单位与场景一致。
+        visibility_mesh: 几何等价的原始共享网格；提供后避免细分面增加求交成本。
     返回值:
         非负 ``(N,N)`` 矩阵，行和为 1 且满足面积加权互易性。
     异常:
@@ -62,7 +64,7 @@ def compute_form_factors(
     count = len(patches.areas)
     if count != len(mesh.faces):
         raise ValueError("Patch 数必须与网格面数一致")
-    intersector = TriangleIntersector(mesh)
+    intersector = TriangleIntersector(visibility_mesh or mesh)
     exchange = np.zeros((count, count), dtype=np.float64)
     for i in range(count):
         for j in range(i + 1, count):
